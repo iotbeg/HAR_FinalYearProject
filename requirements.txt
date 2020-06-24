@@ -1,0 +1,12 @@
+Python >= 3.4
+youtube-dl
+numpy
+tensorboardX 
+ffmpeg
+gzip
+torch 
+CudaNN >=9.2
+scipy
+pandas
+pathlib 
+cv2
