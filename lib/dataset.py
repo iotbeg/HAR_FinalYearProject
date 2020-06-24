@@ -11,7 +11,7 @@ class VideoDataset(Dataset):
 
     def __init__(self, directory, mode='train', clip_len=8, frame_sample_rate=1):
         folder = Path(directory)/mode  # get the directory of the specified split
-        folder = r"/rds/general/user/ims116/home/fyp_git/SlowFastNetworks/disk/dataset/UCF-101/train"
+        folder = r"/rds/general/user/ims116/home/fyp_git/SlowFastNetworks/disk/dataset/UCF-101/train" #change to file location of Kinetics
         self.clip_len = clip_len
 
         self.short_side = [128, 160]
@@ -61,22 +61,18 @@ class VideoDataset(Dataset):
         remainder = np.random.randint(self.frame_sample_rate)
         # initialize a VideoCapture object to read video data into a numpy array
         capture = cv2.VideoCapture(fname)
-        #print("fname", fname)
         
         frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        #print(frame_count, frame_width, frame_height)
         
         if frame_height < frame_width:
             resize_height = np.random.randint(self.short_side[0], self.short_side[1] + 1)
             resize_width = int(float(resize_height) / frame_height * frame_width)
-            #print( "case 1", resize_height, resize_width)
         else:
             resize_width = np.random.randint(self.short_side[0], self.short_side[1] + 1)
             resize_height = int(float(resize_width) / frame_width * frame_height)
             print( "case 0", resize_height, resize_width)
-
         # create a buffer. Must have dtype float, so it gets converted to a FloatTensor by Pytorch later
         start_idx = 0
         end_idx = frame_count-1
@@ -90,7 +86,6 @@ class VideoDataset(Dataset):
         count = 0
         retaining = True
         sample_count = 0
-
         # read in each frame, one at a time into the numpy buffer array
         while (count <= end_idx and retaining):
             retaining, frame = capture.read()
