@@ -16,3 +16,11 @@ To install the libraries,
 ```
 pip install -r requirements.txt
 ```
+##### DATASET
+Please refer to indiviual README of each datasets in folders UCFdataset and kineticsdataset to download the dataset.
+
+##### TRAINING
+Use config file to change the parameters, more discussed in Section 6
+
+##### RESULTS
+The results are discussed in Section 7 of the report.
