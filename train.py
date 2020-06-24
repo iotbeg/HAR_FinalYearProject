@@ -107,7 +107,7 @@ def train(model, train_dataloader, epoch, criterion, optimizer, writer):
     
 
 
-def validation(model, val_dataloader, epoch, criterion, optimizer, writer):
+def validation(model, val_dataloader, epoch, criterion, optimizer, writer): #or test use test loader if testing
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
