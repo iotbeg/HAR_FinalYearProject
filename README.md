@@ -20,7 +20,8 @@ pip install -r requirements.txt
 Please refer to indiviual README of each datasets in folders UCFdataset and kineticsdataset to download the dataset.
 
 ##### TRAINING
-Use config file to change the parameters, more discussed in Section 6
+Use config file to change the parameters, more discussed in Section 6.
+To train ```python train.py```
 
 ##### RESULTS
 The results are discussed in Section 7 of the report.
