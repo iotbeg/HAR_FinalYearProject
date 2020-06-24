@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-__all__ = ['resnet50', 'resnet101','resnet152', 'resnet200']
+__all__ = ['resnet50']
 
 
 
@@ -85,25 +85,60 @@ class SlowFast(nn.Module):
             block, 256, layers[2], stride=2, head_conv=3)
         self.slow_res5 = self._make_layer_slow(
             block, 512, layers[3], stride=2, head_conv=3)
+        #self.dp = nn.Dropout(dropout)
+        #self.fc = nn.Linear(self.fast_inplanes+2048, class_num, bias=False)
+
+        self._lateral_p1 = nn.Conv3d(64, 64*2, kernel_size=(3, 1, 1), stride=(4, 1 ,1), bias=False, padding=(1, 0, 0))
+        self._lateral_res2 = nn.Conv3d(256,256*2, kernel_size=(3, 1, 1), stride=(4, 1 ,1), bias=False, padding=(1, 0, 0))
+        self._lateral_res3 = nn.Conv3d(512,512*2, kernel_size=(3, 1, 1), stride=(4, 1 ,1), bias=False, padding=(1, 0, 0))
+        self._lateral_res4 = nn.Conv3d(1024,1024*2, kernel_size=(3, 1, 1), stride=(4, 1 ,1), bias=False, padding=(1, 0, 0))
+
+        self.single_inplanes = 4
+        self.single_conv1 = nn.Conv3d(3, 64, kernel_size=(1, 7, 7), stride=(1, 2, 2), padding=(0, 3, 3), bias=False)
+        self.single_bn1 = nn.BatchNorm3d(64)
+        self.single_relu = nn.ReLU(inplace=True)
+        self.single_maxpool = nn.MaxPool3d(kernel_size=(1, 3, 3), stride=(1, 2, 2), padding=(0, 1, 1))
+        self.single_res2 = self._make_layer_slow(block, 64, layers[0], head_conv=1)
+        self.single_res3 = self._make_layer_slow(
+            block, 128, layers[1], stride=2, head_conv=1)
+        self.single_res4 = self._make_layer_slow(
+            block, 256, layers[2], stride=2, head_conv=3)
+        self.single_res5 = self._make_layer_slow(
+            block, 512, layers[3], stride=2, head_conv=3)
         self.dp = nn.Dropout(dropout)
         self.fc = nn.Linear(self.fast_inplanes+2048, class_num, bias=False)
+        
     def forward(self, input):
-        print("forward SlowFast begins", input.shape)
         fast, lateral = self.FastPath(input[:, :, ::2, :, :])
-        print("fast ", fast.shape)
-        # print("lateral ", lateral)
-        slow = self.SlowPath(input[:, :, ::16, :, :], lateral)
-        print("slow ", slow.shape)
-        x = torch.cat([slow, fast], dim=1)
-        print("concatenation", x.shape)
-        x = self.dp(x)
-        print("Dropout", x.shape)
-        x = self.fc(x)
-        print("fc", x.shape)
+        slow, sl_lateral = self.SlowPath(input[:, :, ::16, :, :], lateral)
+        single = self.SinglePath(input[:, :, ::64, :, :], lateral)
+        x = torch.cat([single, slow, fast], dim=1)
+        r_in = x.reshape(1,16,2304+8).cuda()
+        lstm1 = nn.LSTM(2304, 512, 1, bidirectional=True).cuda()
+        out_x,(hn,cn) = lstm(r_in)
+        linear = nn.Linear(512,101).cuda()
+        return linear
         return x
 
 
 
+    def SinglePath(self, input, lateral):
+        x = self.single_conv1(input)
+        x = self.single_bn1(x)
+        x = self.single_relu(x)
+        x = self.single_maxpool(x)
+        x = torch.cat([x, lateral[0]],dim=1)
+        x = self.single_res2(x)
+        x = torch.cat([x, lateral[1]],dim=1)
+        x = self.single_res3(x)
+        x = torch.cat([x, lateral[2]],dim=1)
+        x = self.single_res4(x)
+        x = torch.cat([x, lateral[3]],dim=1)
+        x = self.single_res5(x)
+        x = nn.AdaptiveAvgPool3d(1)(x)
+        x = x.view(-1, x.size(1))
+        return x
+        
     def SlowPath(self, input, lateral):
         x = self.slow_conv1(input)
         x = self.slow_bn1(x)
@@ -186,6 +221,25 @@ class SlowFast(nn.Module):
         self.slow_inplanes = planes * block.expansion + planes * block.expansion//8*2
         return nn.Sequential(*layers)
 
+    def _make_layer_single(self, block, planes, blocks, stride=1, head_conv=1):
+        downsample = None
+        if stride != 1 or self.single_inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv3d(
+                    self.single_inplanes,
+                    planes * block.expansion,
+                    kernel_size=1,
+                    stride=(1,stride,stride),
+                    bias=False), nn.BatchNorm3d(planes * block.expansion))
+
+        layers = []
+        layers.append(block(self.single_inplanes, planes, stride, downsample, head_conv=head_conv))
+        self.single_inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.single_inplanes, planes, head_conv=head_conv))
+  
+        self.single_inplanes = planes * block.expansion + planes * block.expansion//8*2
+        return nn.Sequential(*layers)
 
 
 
@@ -193,27 +247,6 @@ def resnet50(**kwargs):
     """Constructs a ResNet-50 model.
     """
     model = SlowFast(Bottleneck, [3, 4, 6, 3], **kwargs)
-    return model
-
-
-def resnet101(**kwargs):
-    """Constructs a ResNet-101 model.
-    """
-    model = SlowFast(Bottleneck, [3, 4, 23, 3], **kwargs)
-    return model
-
-
-def resnet152(**kwargs):
-    """Constructs a ResNet-101 model.
-    """
-    model = SlowFast(Bottleneck, [3, 8, 36, 3], **kwargs)
-    return model
-
-
-def resnet200(**kwargs):
-    """Constructs a ResNet-101 model.
-    """
-    model = SlowFast(Bottleneck, [3, 24, 36, 3], **kwargs)
     return model
 
 if __name__ == "__main__":

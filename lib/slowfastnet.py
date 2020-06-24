@@ -85,33 +85,14 @@ class SlowFast(nn.Module):
             block, 256, layers[2], stride=2, head_conv=3)
         self.slow_res5 = self._make_layer_slow(
             block, 512, layers[3], stride=2, head_conv=3)
-        #self.dp = nn.Dropout(dropout)
+        self.dp = nn.Dropout(dropout)
         self.fc = nn.Linear(self.fast_inplanes+2048, class_num, bias=False)
-        
-        
     def forward(self, input):
-        #print("forward SlowFast begins", input.shape)
         fast, lateral = self.FastPath(input[:, :, ::2, :, :])
-        #print("fast ", fast.shape)
-        # print("lateral ", lateral)
         slow = self.SlowPath(input[:, :, ::16, :, :], lateral)
-        #print("slow ", slow.shape)
         x = torch.cat([slow, fast], dim=1)
-        #print("concatenation", x.shape)
-        #r_in = x.reshape(1,16,2304).cuda()
-        #print("r_in", r_in.shape)
-        #lstm = nn.LSTM(2304, 512, 1).cuda()
-        #print("lstm", lstm)
-        #out_x,(hn,cn) = lstm(r_in)
-        #print("post lstm", out_x.shape)
-        #linear = nn.Linear(512,101).cuda()
-        #r_out2 = linear(out_x).cuda()
-        #r_out2 = r_out2.squeeze()
-        #print("r_out2", r_out2.shape)
-        #x = self.dp(x)
-        #print("Dropout", x.shape)
+        x = self.dp(x)
         x = self.fc(x)
-        #print("fc", x.shape)
         return x
 
 
